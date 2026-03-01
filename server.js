@@ -3,7 +3,6 @@ const cors = require('cors');
 const http = require('http');
 const path = require('path');
 const { createServer: createBareServer } = require('@mercuryworkshop/bare-mux/node');
-const { WispServer } = require('@mercuryworkshop/wisp-js/server');
 
 const app = express();
 const server = http.createServer();
@@ -46,14 +45,27 @@ server.on('request', (req, res) => {
   }
 });
 
-// ── WISP ───────────────────────────────────────────────────────────────────
-const wispServer = new WispServer({ logLevel: 0 });
+// ── WEBSOCKET ──────────────────────────────────────────────────────────────
+// Load wisp dynamically so we can inspect what's actually exported
+let wispHandler = null;
+try {
+  const wisp = require('@mercuryworkshop/wisp-js');
+  // Try common export shapes
+  if (wisp.WispServer) wispHandler = new wisp.WispServer({ logLevel: 0 });
+  else if (wisp.default?.WispServer) wispHandler = new wisp.default.WispServer({ logLevel: 0 });
+  else if (typeof wisp.createServer === 'function') wispHandler = wisp.createServer();
+  console.log('Wisp loaded OK');
+} catch(e) {
+  console.warn('Wisp not available, WebSocket proxying disabled:', e.message);
+}
 
 server.on('upgrade', (req, socket, head) => {
-  if (req.url.startsWith('/wisp/')) {
-    wispServer.handleUpgrade(req, socket, head);
-  } else if (req.url.startsWith('/bare/')) {
+  if (req.url.startsWith('/bare/')) {
     bareServer.handleUpgrade(req, socket, head);
+  } else if (req.url.startsWith('/wisp/') && wispHandler) {
+    if (wispHandler.handleUpgrade) wispHandler.handleUpgrade(req, socket, head);
+    else if (wispHandler.routeRequest) wispHandler.routeRequest(req, socket, head);
+    else socket.destroy();
   } else {
     socket.destroy();
   }
