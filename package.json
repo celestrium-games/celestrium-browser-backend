@@ -11,7 +11,7 @@
   "dependencies": {
     "transport-core": "github:celestrium-games/transport-core",
     "@mercuryworkshop/bare-mux": "^2.0.0",
-    "@mercuryworkshop/wisp-js": "^1.0.0",
+    "@mercuryworkshop/wisp-js": "github:MercuryWorkshop/wisp-js",
     "express": "^4.18.2",
     "cors": "^2.8.5"
   }
