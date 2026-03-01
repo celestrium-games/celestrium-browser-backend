@@ -1,7 +1,6 @@
 {
   "name": "celestrium-proxy-backend",
   "version": "1.0.0",
-  "description": "Ultraviolet proxy backend for Celestrium Online",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
@@ -10,7 +9,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@titaniumnetwork-dev/ultraviolet": "^3.2.2",
+    "transport-core": "github:celestrium-games/transport-core",
     "@mercuryworkshop/bare-mux": "^2.0.0",
     "wisp-server-node": "^1.0.4",
     "express": "^4.18.2",

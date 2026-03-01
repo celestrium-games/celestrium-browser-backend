@@ -2,49 +2,40 @@ const express = require('express');
 const cors = require('cors');
 const http = require('http');
 const path = require('path');
-const { createBareServer } = require('@tomphttp/bare-server-node');
 const wisp = require('wisp-server-node');
+const { createBareServer } = require('@mercuryworkshop/bare-mux/node');
 
 const app = express();
-const server = http.createServer(app);
-
+const server = http.createServer();
 const PORT = process.env.PORT || 3000;
 
-// ── CORS — allow requests from your Vercel frontend ────────────────────────
-app.use(cors({
-  origin: [
-    'https://celestrium-online-portal.vercel.app',
-    /\.vercel\.app$/,
-    'http://localhost:3000',
-    'http://localhost:8000',
-  ],
-  credentials: true,
-}));
+// ── CORS ───────────────────────────────────────────────────────────────────
+app.use(cors({ origin: '*', credentials: true }));
 
-// ── SERVE ULTRAVIOLET STATIC FILES ─────────────────────────────────────────
-// UV needs its bundle, config, and service worker served as static files
-const uvPath = require.resolve('@titaniumnetwork-dev/ultraviolet').replace('index.js', '');
-app.use('/uv/', express.static(path.join(uvPath, 'dist')));
+// ── UV STATIC FILES ────────────────────────────────────────────────────────
+let uvDist;
+try {
+  uvDist = path.join(path.dirname(require.resolve('transport-core/package.json')), 'dist');
+} catch {
+  uvDist = path.join(__dirname, 'node_modules/transport-core/dist');
+}
+app.use('/uv/', express.static(uvDist));
 
-// ── SERVE YOUR OWN UV CONFIG ────────────────────────────────────────────────
-// This tells UV where the service worker and bare server live
+// ── UV CONFIG (encoding handled client-side, server just serves the file) ──
 app.get('/uv/uv.config.js', (req, res) => {
   res.setHeader('Content-Type', 'application/javascript');
-  res.send(`
-self.__uv$config = {
+  const base = `${req.protocol}://${req.get('host')}`;
+  res.send(`self.__uv$config = {
   prefix: '/uv/service/',
-  bare: '/bare/',
-  encodeUrl: Ultraviolet.codec.xor.encode,
-  decodeUrl: Ultraviolet.codec.xor.decode,
+  bare: '${base}/bare/',
   handler: '/uv/uv.handler.js',
   bundle: '/uv/uv.bundle.js',
   config: '/uv/uv.config.js',
   sw: '/uv/uv.sw.js',
-};
-  `.trim());
+};`);
 });
 
-// ── BARE SERVER (handles proxied HTTP requests) ─────────────────────────────
+// ── BARE SERVER ────────────────────────────────────────────────────────────
 const bareServer = createBareServer('/bare/');
 
 server.on('request', (req, res) => {
@@ -55,7 +46,7 @@ server.on('request', (req, res) => {
   }
 });
 
-// ── WISP SERVER (handles WebSocket proxying) ────────────────────────────────
+// ── WISP (WebSocket proxy) ─────────────────────────────────────────────────
 server.on('upgrade', (req, socket, head) => {
   if (req.url.startsWith('/wisp/')) {
     wisp.routeRequest(req, socket, head);
@@ -66,12 +57,10 @@ server.on('upgrade', (req, socket, head) => {
   }
 });
 
-// ── HEALTH CHECK ────────────────────────────────────────────────────────────
+// ── HEALTH CHECK ───────────────────────────────────────────────────────────
 app.get('/', (req, res) => {
-  res.json({ status: 'Celestrium Proxy Backend running', version: '1.0.0' });
+  res.json({ status: 'running' });
 });
 
-// ── START ────────────────────────────────────────────────────────────────────
-server.listen(PORT, () => {
-  console.log(`Celestrium proxy backend listening on port ${PORT}`);
-});
+// ── START ──────────────────────────────────────────────────────────────────
+server.listen(PORT, () => console.log(`Listening on port ${PORT}`));
