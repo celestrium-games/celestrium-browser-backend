@@ -2,8 +2,8 @@ const express = require('express');
 const cors = require('cors');
 const http = require('http');
 const path = require('path');
-const wisp = require('wisp-server-node');
-const { createBareServer } = require('@mercuryworkshop/bare-mux/node');
+const { createServer: createBareServer } = require('@mercuryworkshop/bare-mux/node');
+const { WispServer } = require('@mercuryworkshop/wisp-js/server');
 
 const app = express();
 const server = http.createServer();
@@ -21,7 +21,7 @@ try {
 }
 app.use('/uv/', express.static(uvDist));
 
-// ── UV CONFIG (encoding handled client-side, server just serves the file) ──
+// ── UV CONFIG ──────────────────────────────────────────────────────────────
 app.get('/uv/uv.config.js', (req, res) => {
   res.setHeader('Content-Type', 'application/javascript');
   const base = `${req.protocol}://${req.get('host')}`;
@@ -36,22 +36,24 @@ app.get('/uv/uv.config.js', (req, res) => {
 });
 
 // ── BARE SERVER ────────────────────────────────────────────────────────────
-const bareServer = createBareServer('/bare/');
+const bareServer = createBareServer();
 
 server.on('request', (req, res) => {
-  if (bareServer.shouldRoute(req)) {
-    bareServer.routeRequest(req, res);
+  if (req.url.startsWith('/bare/')) {
+    bareServer.handleRequest(req, res);
   } else {
     app(req, res);
   }
 });
 
-// ── WISP (WebSocket proxy) ─────────────────────────────────────────────────
+// ── WISP ───────────────────────────────────────────────────────────────────
+const wispServer = new WispServer({ logLevel: 0 });
+
 server.on('upgrade', (req, socket, head) => {
   if (req.url.startsWith('/wisp/')) {
-    wisp.routeRequest(req, socket, head);
-  } else if (bareServer.shouldRoute(req)) {
-    bareServer.routeUpgrade(req, socket, head);
+    wispServer.handleUpgrade(req, socket, head);
+  } else if (req.url.startsWith('/bare/')) {
+    bareServer.handleUpgrade(req, socket, head);
   } else {
     socket.destroy();
   }
